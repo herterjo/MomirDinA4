@@ -287,19 +287,11 @@ public static class Generator
         return qrCode.GetGraphic(20);
     }
 
-    private static float GetFontSize(string forContent, int maxSize = 10, int minSize = 5)
-    {
-        if (String.IsNullOrWhiteSpace(forContent))
-            return maxSize;
-
-        return Math.Max(minSize, Math.Min(maxSize, maxSize - forContent.Length * 0.01f));
-    }
-
     public static string GetManaCost(Card card)
     {
         var colorIndicator = card.ColorIndicator == null ? "" : (" | Color Indicator: " + String.Join(", ", card.ColorIndicator));
-        var hasManaCost = String.IsNullOrWhiteSpace(card.ManaCost);
-        if (!hasManaCost && card.Cmc != 0)
+        var hasManaCost = !String.IsNullOrWhiteSpace(card.ManaCost);
+        if (hasManaCost && card.Cmc != 0)
         {
             return card.ManaCost + colorIndicator;
         }
