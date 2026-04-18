@@ -76,7 +76,7 @@ public static class ScryfallApi
             var deserialized = serializer.Deserialize<List<Card>>(jsonTextReader);
             Momir = deserialized?.SingleOrDefault(c => c.MtgoId == Config.Instance.MomirAvatarMtgoId);
             CmcCards = deserialized?
-                .Where(c => c.Cmc.HasValue && c.Cmc == (uint)c.Cmc && c.Digital != true && c.TypeLine.Contains("Creature") && c.ImageUris != null)
+                .Where(c => c.Cmc.HasValue && c.Cmc == (uint)c.Cmc && c.Digital != true && c.TypeLine.Contains("Creature") && c.ImageUris != null && !c.TypeLine.StartsWith("Token"))
                 .GroupBy(c => (uint)c.Cmc.Value)
                 .ToDictionary(g => g.Key, g => g.ToList());
         }
