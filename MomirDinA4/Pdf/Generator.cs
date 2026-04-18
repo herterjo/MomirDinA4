@@ -1,0 +1,307 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using IronSoftware.Drawing;
+using MomirDinA4.ScryfallApiObjects;
+using QRCoder;
+using QuestPDF;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
+
+namespace MomirDinA4.Pdf;
+
+public static class Generator
+{
+    private const int CardsOnPage = 9;
+    private const int CardsInRow = 3;
+    private const int ColumnWidth = 175;
+    private const int TablePadding = 5;
+    private const int PageMargin = 1;
+    private const int DefaultRowHeight = 247;
+    private static readonly QRCodeGenerator QrGenerator = new();
+
+    public static Response GetBasicPrintPdf(BasicPrintPdfRequest request)
+    {
+        var momirImageUrl = ScryfallApi.Momir?.ImageUris.BorderCrop;
+        byte[]? momirImage;
+
+        if (momirImageUrl != null)
+        {
+            momirImage = GetImageData(momirImageUrl).Result;
+        }
+        else
+        {
+            momirImage = null;
+        }
+
+        var includedCards = new List<string>();
+        var pdf = Document.Create(container =>
+        {
+            if (request.MomirEmblemCount > 0 && momirImage != null)
+            {
+                var momirImages = new List<(byte[] Data, Card Card)>(request.MomirEmblemCount);
+                for (var i = 0; i < request.MomirEmblemCount; i++)
+                {
+                    momirImages.Add((momirImage, ScryfallApi.Momir));
+                }
+
+                AddImages(container, momirImages, new PdfSettings(false, false, false, false), 0);
+
+                if (request.PdfSettings.DuplexPrintingEnabled)
+                {
+                    container.Page(page =>
+                    {
+                        page.Size(PageSizes.A4);
+                        page.PageColor(Colors.White);
+                    });
+                }
+            }
+
+            foreach (var cmc in request.InitialCmcs)
+            {
+                includedCards.AddRange(AddCards(container, cmc, request.AlreadyPrintedCards, request.PdfSettings));
+            }
+        })
+        .GeneratePdf();
+
+        return new Response(includedCards, pdf);
+    }
+
+    private static List<Card> GetCardsForPage(uint cmc, IReadOnlySet<string> notIncludes)
+    {
+        if (!ScryfallApi.CmcCards.TryGetValue(cmc, out var allCards))
+        {
+            return [];
+        }
+
+        return allCards.Where(c => !notIncludes.Contains(c.Id)).Shuffle().Take(CardsOnPage).ToList();
+    }
+
+    private static List<string> AddCards(IDocumentContainer container, uint cmc, IReadOnlySet<string> notIncludes, PdfSettings settings)
+    {
+        var cards = GetCardsForPage(cmc, notIncludes);
+
+        if (cards.Count == 0)
+        {
+            return [];
+        }
+
+        var imageTasks = new List<(Task<byte[]> Data, Card Card)>(cards.Count);
+        foreach (var card in cards)
+        {
+            var url = GetImageUrl(card, settings.CropArt);
+            var imageTask = GetImageData(url);
+            imageTasks.Add((imageTask, card));
+        }
+        Task.WhenAll(imageTasks.Select(c => c.Data)).Wait();
+        AddImages(container, imageTasks.Select(c => (c.Data.Result, c.Card)).ToList(), settings, cmc);
+        return cards.Select(c => c.Id).ToList();
+    }
+
+    private static string GetImageUrl(Card card, bool cropArt)
+    {
+        if (cropArt && !String.IsNullOrWhiteSpace(card.ImageUris.ArtCrop))
+        {
+            return card.ImageUris.ArtCrop;
+        }
+        return String.IsNullOrWhiteSpace(card.ImageUris.BorderCrop) ? card.ImageUris.Normal : card.ImageUris.BorderCrop;
+    }
+
+    private async static Task<byte[]> GetImageData(string url)
+    {
+        using var response = await ScryfallApi.SendRequest(url);
+        var responseStream = response.Content.ReadAsStream();
+        var buffer = new byte[16 * 1024];
+        using (MemoryStream ms = new MemoryStream())
+        {
+            int read;
+            while ((read = responseStream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                ms.Write(buffer, 0, read);
+            }
+            return ms.ToArray();
+        }
+    }
+
+    private static void AddImages(IDocumentContainer container, List<(byte[] Data, Card Card)> images, PdfSettings settings, uint cmc)
+    {
+        if (images.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var cardsOnPage in images.Chunk(CardsOnPage))
+        {
+            if (settings.DuplexPrintingEnabled)
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(PageMargin, Unit.Centimetre);
+                    page.PageColor(Colors.White);
+
+                    var content = page.Content();
+
+                    content.Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            for (var i = 0; i < CardsInRow; i++)
+                            {
+                                columns.ConstantColumn(ColumnWidth);
+                            }
+                        });
+                        foreach (var cardsInRow in cardsOnPage.Chunk(CardsInRow))
+                        {
+                            foreach (var card in cardsInRow)
+                            {
+                                int height;
+                                if (settings.CropArt)
+                                {
+                                    height = DefaultRowHeight;
+                                }
+                                else
+                                {
+                                    using var image = new AnyBitmap(card.Data);
+                                    var aspectRatio = image.Height / (double)image.Width;
+                                    height = (int)(ColumnWidth * aspectRatio);
+                                }
+
+                                table.Cell()
+                                    .Element(s => s.Border(1).Height(height))
+                                    .AlignCenter()
+                                    .Padding(TablePadding)
+                                    .Column(c =>
+                                    {
+                                        c.Spacing(20);
+                                        c.Item().Text(cmc.ToString()).FontSize(40).AlignCenter();
+                                        if (settings.IncludeQrCode)
+                                        {
+                                            var qrCodeBytes = GetQrCode(card.Card);
+                                            c.Item().Image(qrCodeBytes);
+                                        }
+                                    });
+
+                            }
+                        }
+                    });
+                });
+            }
+
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(PageMargin, Unit.Centimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(10));
+
+                var content = page.Content();
+
+                content.Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        for (var i = 0; i < CardsInRow; i++)
+                        {
+                            columns.ConstantColumn(ColumnWidth);
+                        }
+                    });
+                    foreach (var imagcardsInRowsInRow in cardsOnPage.Chunk(CardsInRow))
+                    {
+                        foreach (var card in imagcardsInRowsInRow)
+                        {
+                            if (settings.CropArt && card.Card.ImageUris.ArtCrop != null)
+                            {
+                                table.Cell()
+                                    .Element(e => e.Border(1).Height(DefaultRowHeight))
+                                    .AlignCenter()
+                                    .Padding(TablePadding)
+                                    .Column(c =>
+                                    {
+                                        int remainingHeightForOracle;
+                                        c.Item().Height(15).ScaleToFit().Text(card.Card.Name).Bold();
+                                        c.Item().Height(12).ScaleToFit().Text("Cost: " + GetManaCost(card.Card));
+                                        var addQrCodeOnFront = settings.IncludeQrCode && !settings.DuplexPrintingEnabled;
+                                        if (settings.NoArt && addQrCodeOnFront)
+                                        {
+                                            var qrCode = GetQrCode(card.Card);
+                                            c.Item().Height(64).Image(qrCode);
+                                            remainingHeightForOracle = 110;
+                                        }
+                                        else if (settings.NoArt)
+                                        {
+                                            remainingHeightForOracle = 174;
+                                        }
+                                        else if (addQrCodeOnFront)
+                                        {
+                                            c.Item().AlignCenter().Height(64).ScaleToFit().Row(r =>
+                                            {
+                                                r.ConstantItem((int)(ColumnWidth * 0.5)).Image(card.Data);
+                                                var qrCode = GetQrCode(card.Card);
+                                                r.ConstantItem((int)(ColumnWidth * 0.35)).Image(qrCode);
+                                            });
+                                            remainingHeightForOracle = 110;
+                                        }
+                                        else
+                                        {
+                                            c.Item().AlignCenter().Height(110).Image(card.Data);
+                                            remainingHeightForOracle = 64;
+                                        }
+
+                                        c.Item().Height(15).ScaleToFit().Text(card.Card.TypeLine).Bold();
+                                        c.Item().Height(remainingHeightForOracle).ScaleToFit().Text(card.Card.OracleText);
+                                        c.Item().Height(12).ScaleToFit().AlignBottom().AlignRight().Text(card.Card.Power + " / " + card.Card.Toughness);
+                                    });
+                            }
+                            else
+                            {
+                                table.Cell()
+                                    .AlignCenter()
+                                    .Padding(TablePadding)
+                                    .Image(Image.FromBinaryData(card.Data));
+                            }
+                        }
+                    }
+                });
+            });
+        }
+    }
+
+    private static byte[] GetQrCode(Card card)
+    {
+        using var qrData = QrGenerator.CreateQrCode(card.ScryfallUri, QRCodeGenerator.ECCLevel.Q);
+        var qrCode = new PngByteQRCode(qrData);
+        return qrCode.GetGraphic(20);
+    }
+
+    private static float GetFontSize(string forContent, int maxSize = 10, int minSize = 5)
+    {
+        if (String.IsNullOrWhiteSpace(forContent))
+            return maxSize;
+
+        return Math.Max(minSize, Math.Min(maxSize, maxSize - forContent.Length * 0.01f));
+    }
+
+    public static string GetManaCost(Card card)
+    {
+        var colorIndicator = card.ColorIndicator == null ? "" : (" | Color Indicator: " + String.Join(", ", card.ColorIndicator));
+        if (!String.IsNullOrWhiteSpace(card.ManaCost) && card.Cmc != 0)
+        {
+            return card.ManaCost + colorIndicator;
+        }
+        return "None" + (String.IsNullOrWhiteSpace(colorIndicator) ? " | Colors: " + String.Join(", ", card.Colors ?? []) : colorIndicator);
+    }
+
+    public static Response GetCmcPdf(CmcPdfRequest request)
+    {
+        List<string> includedCards = [];
+        var pdf = Document.Create(container =>
+        {
+            includedCards = AddCards(container, request.Cmc, request.AlreadyPrintedCards, request.PdfSettings);
+        })
+        .GeneratePdf();
+
+        return new Response(includedCards, pdf);
+    }
+}

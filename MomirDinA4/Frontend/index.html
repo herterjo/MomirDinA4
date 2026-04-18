@@ -1,0 +1,53 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="style.css">
+    <script src="libraries/jquery.min.js"></script>
+    <title>MomirDinA4</title>
+</head>
+<body>
+	<h1>Momir Printer</h1>
+	
+	<h2>PDF generation settings</h2>
+	<div class="section" id="PdfSettings">
+		<input id="DuplexPrintingEnabled" type="checkbox" checked />
+		<label for="DuplexPrintingEnabled">Duplex printing enabled (for printing CMC value and cutting lines at the back of the tokens)</label>
+
+		<div></div>
+
+		<input id="IncludeQrCode" type="checkbox" />
+		<label for="IncludeQrCode">Include QR code to scryfall site on card (only works with duplex or art + rules separated)</label>
+
+		<div></div>
+
+		<input id="CropArt" type="checkbox" checked />
+		<label for="CropArt">Seperate art and rules text where possible, to not print the whole card on paper</label>
+
+		<div></div>
+
+		<input id="NoArt" type="checkbox" />
+		<label for="NoArt">Omits art entirely. Does only work with art + rules separated</label>
+
+		<div></div>
+
+		<input id="PreventDuplicates" type="checkbox" checked />
+		<label for="PreventDuplicates">Prevent duplicates. May lead to nothing being printed after all cards have been printed.</label>
+	</div>
+	
+	<h2>Basic-Print</h2>
+	<div class="section" id="BasicPrint">
+		<label for="MomirEmblemCount">Momir Emblem count</label>
+		<input id="MomirEmblemCount" type="number" step="1" value="2" min="0" />
+
+		<div id="InitialCmcs"></div>
+
+		<button onclick="downloadBasicPrintPdf()">Download Basic-Print PDF</button>
+	</div>
+	
+	<h2>Additional pages</h2>
+	<div class="section" id="AdditionalPages">
+	</div>
+
+	<script src="app.js"></script>
+</body>
+</html>
