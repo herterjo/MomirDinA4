@@ -23,7 +23,7 @@ public static class Generator
 
     public static Response GetBasicPrintPdf(BasicPrintPdfRequest request)
     {
-        var momirImageUrl = ScryfallApi.Momir?.ImageUris.BorderCrop;
+        var momirImageUrl = ScryfallApi.Momir?.ImageUris?.BorderCrop;
         byte[]? momirImage;
 
         if (momirImageUrl != null)
@@ -87,20 +87,31 @@ public static class Generator
             return [];
         }
 
-        var imageTasks = new List<(Task<byte[]> Data, Card Card)>(cards.Count);
+        var imageTasks = new List<(Task<byte[]?> Data, Card Card)>(cards.Count);
         foreach (var card in cards)
         {
             var url = GetImageUrl(card, settings.CropArt);
-            var imageTask = GetImageData(url);
-            imageTasks.Add((imageTask, card));
+            if (url == null)
+            {
+                imageTasks.Add((Task.Run(() => (byte[]?)null), card));
+            }
+            else
+            {
+                var imageTask = GetImageData(url);
+                imageTasks.Add((imageTask, card));
+            }
         }
         Task.WhenAll(imageTasks.Select(c => c.Data)).Wait();
         AddImages(container, imageTasks.Select(c => (c.Data.Result, c.Card)).ToList(), settings, cmc);
         return cards.Select(c => c.Id).ToList();
     }
 
-    private static string GetImageUrl(Card card, bool cropArt)
+    private static string? GetImageUrl(Card card, bool cropArt)
     {
+        if (card.ImageUris == null)
+        {
+            return null;
+        }
         if (cropArt && !String.IsNullOrWhiteSpace(card.ImageUris.ArtCrop))
         {
             return card.ImageUris.ArtCrop;
@@ -108,7 +119,7 @@ public static class Generator
         return String.IsNullOrWhiteSpace(card.ImageUris.BorderCrop) ? card.ImageUris.Normal : card.ImageUris.BorderCrop;
     }
 
-    private async static Task<byte[]> GetImageData(string url)
+    private async static Task<byte[]?> GetImageData(string url)
     {
         using var response = await ScryfallApi.SendRequest(url);
         var responseStream = response.Content.ReadAsStream();
@@ -124,7 +135,7 @@ public static class Generator
         }
     }
 
-    private static void AddImages(IDocumentContainer container, List<(byte[] Data, Card Card)> images, PdfSettings settings, uint cmc)
+    private static void AddImages(IDocumentContainer container, List<(byte[]? Data, Card Card)> images, PdfSettings settings, uint cmc)
     {
         if (images.Count == 0)
         {
@@ -223,13 +234,14 @@ public static class Generator
                                         c.Item().Height(15).ScaleToFit().Text(card.Card.Name).Bold();
                                         c.Item().Height(12).ScaleToFit().Text("Cost: " + GetManaCost(card.Card));
                                         var addQrCodeOnFront = settings.IncludeQrCode && !settings.DuplexPrintingEnabled;
-                                        if (settings.NoArt && addQrCodeOnFront)
+                                        var noArt = settings.NoArt || card.Data == null;
+                                        if (noArt && addQrCodeOnFront)
                                         {
                                             var qrCode = GetQrCode(card.Card);
                                             c.Item().Height(64).Image(qrCode);
                                             remainingHeightForOracle = 110;
                                         }
-                                        else if (settings.NoArt)
+                                        else if (noArt)
                                         {
                                             remainingHeightForOracle = 174;
                                         }
@@ -286,11 +298,12 @@ public static class Generator
     public static string GetManaCost(Card card)
     {
         var colorIndicator = card.ColorIndicator == null ? "" : (" | Color Indicator: " + String.Join(", ", card.ColorIndicator));
-        if (!String.IsNullOrWhiteSpace(card.ManaCost) && card.Cmc != 0)
+        var hasManaCost = String.IsNullOrWhiteSpace(card.ManaCost);
+        if (!hasManaCost && card.Cmc != 0)
         {
             return card.ManaCost + colorIndicator;
         }
-        return "None" + (String.IsNullOrWhiteSpace(colorIndicator) ? " | Colors: " + String.Join(", ", card.Colors ?? []) : colorIndicator);
+        return (hasManaCost ? card.ManaCost : "None") + (String.IsNullOrWhiteSpace(colorIndicator) ? " | Colors: " + String.Join(", ", card.Colors ?? []) : colorIndicator);
     }
 
     public static Response GetCmcPdf(CmcPdfRequest request)
