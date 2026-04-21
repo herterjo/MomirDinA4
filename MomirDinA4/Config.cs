@@ -6,24 +6,24 @@ using Newtonsoft.Json;
 namespace MomirDinA4;
 
 [method: JsonConstructor]
-public class Config(
-    string host,
-    ushort port,
-    bool skipScryfallUpdate,
-    int momirAvatarMtgoId
+public record Config(
+    string Host,
+    ushort Port,
+    bool SkipScryfallUpdate,
+    int MomirAvatarMtgoId,
+    string? CubeFilename,
+    bool CubeCardsAreScryfallIdsInsteadOfNames,
+    bool DefaultFilterIncludesDigitalCards,
+    bool DefaultFilterIncludesFunnyCards
     )
 {
     private const string ConfigFileName = "config.json";
 
     public static readonly Config Instance = ReadConfig();
 
-    public string Host { get; } = host;
-    public ushort Port { get; } = port;
-    public bool SkipScryfallUpdate { get; } = skipScryfallUpdate;
-    public int MomirAvatarMtgoId { get; } = momirAvatarMtgoId;
 
-    public Config() : this("localhost", 8001, true, 23965)
-    { 
+    public Config() : this("localhost", 8001, true, 23965, null, false, false, true)
+    {
     }
 
     private static Config ReadConfig()

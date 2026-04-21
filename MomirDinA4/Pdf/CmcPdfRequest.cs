@@ -5,10 +5,10 @@ using Newtonsoft.Json;
 
 namespace MomirDinA4.Pdf;
 
-[method: JsonConstructor]
-public class CmcPdfRequest(PdfSettings pdfSettings, uint cmc, HashSet<string> alreadyPrintedCards)
+public record CmcPdfRequest(PdfSettings PdfSettings, uint Cmc, IReadOnlySet<string> AlreadyPrintedCards)
 {
-    public PdfSettings PdfSettings { get; } = pdfSettings;
-    public uint Cmc { get; } = cmc;
-    public IReadOnlySet<string> AlreadyPrintedCards { get; } = alreadyPrintedCards;
+    [method: JsonConstructor]
+    public CmcPdfRequest(PdfSettings PdfSettings, uint Cmc, HashSet<string> AlreadyPrintedCards) : this(PdfSettings, Cmc, (IReadOnlySet<string>)AlreadyPrintedCards)
+    {
+    }
 }

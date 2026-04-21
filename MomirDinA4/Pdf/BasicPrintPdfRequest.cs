@@ -5,11 +5,11 @@ using Newtonsoft.Json;
 
 namespace MomirDinA4.Pdf;
 
-[method: JsonConstructor]
-public class BasicPrintPdfRequest(PdfSettings pdfSettings, int momirEmblemCount, List<uint> initialCmcs, HashSet<string> alreadyPrintedCards)
+public record BasicPrintPdfRequest(PdfSettings PdfSettings, int MomirEmblemCount, IReadOnlyList<uint> InitialCmcs, IReadOnlySet<string> AlreadyPrintedCards)
 {
-    public PdfSettings PdfSettings { get; } = pdfSettings;
-    public int MomirEmblemCount { get; } = momirEmblemCount;
-    public IReadOnlyList<uint> InitialCmcs { get; } = initialCmcs;
-    public IReadOnlySet<string> AlreadyPrintedCards { get; } = alreadyPrintedCards;
+    [method: JsonConstructor]
+    public BasicPrintPdfRequest(PdfSettings PdfSettings, int MomirEmblemCount, List<uint> InitialCmcs, HashSet<string> AlreadyPrintedCards) : this(PdfSettings, MomirEmblemCount, (IReadOnlyList<uint>)InitialCmcs, (IReadOnlySet<string>)AlreadyPrintedCards)
+    {
+
+    }
 }

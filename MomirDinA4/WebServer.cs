@@ -20,10 +20,11 @@ public static class WebServer
     public static void Start()
     {
         using var listener = new HttpListener();
-        listener.Prefixes.Add("http://" + Config.Instance.Host + ":" + Config.Instance.Port + "/");
+        var webserverListeningAddress = "http://" + Config.Instance.Host + ":" + Config.Instance.Port + "/";
+        listener.Prefixes.Add(webserverListeningAddress);
         listener.Start();
 
-        Console.WriteLine("Web Server Running on address " + Config.Instance.Host + " and port " + Config.Instance.Port + "... Press ^C to Stop...");
+        Console.WriteLine("Web Server Running on address " + webserverListeningAddress + "... Press ^C to Stop...");
 
         while (true)
         {

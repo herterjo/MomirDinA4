@@ -4,8 +4,6 @@ using System.Text;
 
 namespace MomirDinA4.Pdf;
 
-public class Response(List<string> includedCards, byte[] pdfContent)
+public record class Response(List<string> IncludedCards, byte[] PdfContent)
 {
-    public List<string> IncludedCards { get; } = includedCards;
-    public byte[] PdfContent { get; } = pdfContent;
 }

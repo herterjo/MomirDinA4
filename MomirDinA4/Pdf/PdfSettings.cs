@@ -6,10 +6,6 @@ using Newtonsoft.Json;
 namespace MomirDinA4.Pdf;
 
 [method: JsonConstructor]
-public class PdfSettings(bool duplexPrintingEnabled, bool includeQrCode, bool cropArt, bool noArt)
+public record class PdfSettings(bool DuplexPrintingEnabled, bool IncludeQrCode, bool CropArt, bool NoArt)
 {
-    public bool DuplexPrintingEnabled { get; } = duplexPrintingEnabled;
-    public bool IncludeQrCode { get; } = includeQrCode;
-    public bool CropArt { get; } = cropArt;
-    public bool NoArt { get; } = noArt;
 }

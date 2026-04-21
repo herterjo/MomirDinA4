@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using IronSoftware.Drawing;
 using MomirDinA4.ScryfallApiObjects;
 using QRCoder;
-using QuestPDF;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -87,23 +85,38 @@ public static class Generator
             return [];
         }
 
-        var imageTasks = new List<(Task<byte[]?> Data, Card Card)>(cards.Count);
-        foreach (var card in cards)
+        List<(Task<byte[]?> Data, Card Card)> imageTasks;
+
+        if (settings.NoArt)
         {
-            var url = GetImageUrl(card, settings.CropArt);
-            if (url == null)
+            imageTasks = cards.Select(GetNoCardArt).ToList();
+        }
+        else
+        {
+            imageTasks = new(cards.Count);
+            foreach (var card in cards)
             {
-                imageTasks.Add((Task.Run(() => (byte[]?)null), card));
-            }
-            else
-            {
-                var imageTask = GetImageData(url);
-                imageTasks.Add((imageTask, card));
+                var url = GetImageUrl(card, settings.CropArt);
+                if (url == null)
+                {
+                    var noCardArt = GetNoCardArt(card);
+                    imageTasks.Add(noCardArt);
+                }
+                else
+                {
+                    var imageTask = GetImageData(url);
+                    imageTasks.Add((imageTask, card));
+                }
             }
         }
         Task.WhenAll(imageTasks.Select(c => c.Data)).Wait();
         AddImages(container, imageTasks.Select(c => (c.Data.Result, c.Card)).ToList(), settings, cmc);
         return cards.Select(c => c.Id).ToList();
+    }
+
+    private static (Task<byte[]?>, Card card) GetNoCardArt(Card card)
+    {
+        return (Task.Run(() => (byte[]?)null), card);
     }
 
     private static string? GetImageUrl(Card card, bool cropArt)
@@ -167,20 +180,8 @@ public static class Generator
                         {
                             foreach (var card in cardsInRow)
                             {
-                                int height;
-                                if (settings.CropArt)
-                                {
-                                    height = DefaultRowHeight;
-                                }
-                                else
-                                {
-                                    using var image = new AnyBitmap(card.Data);
-                                    var aspectRatio = image.Height / (double)image.Width;
-                                    height = (int)(ColumnWidth * aspectRatio);
-                                }
-
                                 table.Cell()
-                                    .Element(s => s.Border(1).Height(height))
+                                    .Element(s => s.Border(1).Height(DefaultRowHeight))
                                     .AlignCenter()
                                     .Padding(TablePadding)
                                     .Column(c =>
@@ -222,7 +223,8 @@ public static class Generator
                     {
                         foreach (var card in imagcardsInRowsInRow)
                         {
-                            if (settings.CropArt && card.Card.ImageUris.ArtCrop != null)
+                            var noArt = card.Data == null;
+                            if ((settings.CropArt && card.Card.ImageUris.ArtCrop != null) || noArt)
                             {
                                 table.Cell()
                                     .Element(e => e.Border(1).Height(DefaultRowHeight))
@@ -234,7 +236,7 @@ public static class Generator
                                         c.Item().Height(15).ScaleToFit().Text(card.Card.Name).Bold();
                                         c.Item().Height(12).ScaleToFit().Text("Cost: " + GetManaCost(card.Card));
                                         var addQrCodeOnFront = settings.IncludeQrCode && !settings.DuplexPrintingEnabled;
-                                        var noArt = settings.NoArt || card.Data == null;
+                                        
                                         if (noArt && addQrCodeOnFront)
                                         {
                                             var qrCode = GetQrCode(card.Card);
@@ -257,12 +259,12 @@ public static class Generator
                                         }
                                         else
                                         {
-                                            c.Item().AlignCenter().Height(110).Image(card.Data);
+                                            c.Item().AlignCenter().Height(100).Image(card.Data);
                                             remainingHeightForOracle = 64;
                                         }
 
                                         c.Item().Height(15).ScaleToFit().Text(card.Card.TypeLine).Bold();
-                                        c.Item().Height(remainingHeightForOracle).ScaleToFit().Text(card.Card.OracleText);
+                                        c.Item().Height(remainingHeightForOracle).ScaleToFit().Text(GetOracleText(card.Card));
                                         c.Item().Height(12).ScaleToFit().AlignBottom().AlignRight().Text(card.Card.Power + " / " + card.Card.Toughness);
                                     });
                             }
@@ -278,6 +280,21 @@ public static class Generator
                 });
             });
         }
+    }
+
+    private static string GetOracleText(Card card)
+    {
+        if (!String.IsNullOrEmpty(card.OracleText))
+        {
+            return card.OracleText;
+        }
+
+        if (card.CardFaces != null && card.CardFaces.Count > 0 && card.CardFaces.Any(cf => !String.IsNullOrWhiteSpace(cf.OracleText)))
+        {
+            var oracleText = String.Join("\n\n//\n\n", card.CardFaces.Select(cf => cf.TypeLine + "\n" + cf.OracleText));
+            return oracleText;
+        }
+        return "";
     }
 
     private static byte[] GetQrCode(Card card)
