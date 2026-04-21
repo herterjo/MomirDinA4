@@ -14,8 +14,8 @@ To redownload the database, simply delete scryfallDefaultCards.json
 Values in config.json (will be created at first start):
 - SkipScryfallUpdate: Set to false to redownload the database at every startup.  
 - Host and Port: Change where the webserver is reachable.  
-- CubeFilename: Filename to pull cards from to include, every entry is a new line. These can also include tokens or other card types than creatures, but must be present in card database from scryfall. If empty, use hte default filter to use all creatures which are not tokens, not double-sided and no augments.   
+- CubeFilename: Filename to pull cards from to include, every entry is a new line. These can also include tokens or other card types than creatures, but must be present in card database from scryfall. If empty, use the default filter to use all creatures which are not tokens, not double-sided and not augments.   
 - CubeCardsAreScryfallIdsInsteadOfNames: Determines if the entries from CubeFilename should be english card names or scryfall ids.  
 - DefaultFilterIncludesDigitalCards: Set to true if you do not provide CubeFilename but want also digital cards included.  
 - DefaultFilterIncludesFunnyCards: Set to true if you do not provide CubeFilename but want also cards from funny sets included (for example Un-sets).  
-- MomirAvatarMtgoId: MTGO id for Momir emblem. Should be always be 23965.  
+- MomirAvatarMtgoId: MTGO id for Momir emblem. Should always be 23965.  
