@@ -60,7 +60,8 @@ public record Card(
     [property: JsonProperty("story_spotlight")] bool? StorySpotlight,
     [property: JsonProperty("promo_types")] IReadOnlyList<string> PromoTypes,
     [property: JsonProperty("mtgo_id")] int MtgoId,
-    [property: JsonProperty("card_faces")] IReadOnlyList<CardFace> CardFaces
+    [property: JsonProperty("card_faces")] IReadOnlyList<CardFace> CardFaces,
+    [property: JsonProperty("flavor_name")] string FlavorName
     )
 {
 }

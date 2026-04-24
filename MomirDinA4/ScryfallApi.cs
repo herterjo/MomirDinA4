@@ -106,7 +106,12 @@ public static class ScryfallApi
             {
                 withCmc = withCmc.Where(c => c.Lang == "en")
                     .GroupBy(c => c.Name)
-                    .Select(g => g.OrderByDescending(c => c.ReleasedAt).First());
+                    .Select(g => g.OrderBy(c => c.FullArt == true ? 1 : 0)
+                        .ThenBy(c => String.IsNullOrEmpty(c.FlavorName) ? 0 : 1)
+                        .ThenBy(c => c.Foil == true ? 1 : 0)
+                        .ThenByDescending(c => Int32.TryParse(c.Frame, out var frameYear) ? frameYear : 0)
+                        .ThenByDescending(c => c.ReleasedAt)
+                        .First());
                 SetCmcDict(withCmc);
             }
         }

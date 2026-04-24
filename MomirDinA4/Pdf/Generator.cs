@@ -157,50 +157,6 @@ public static class Generator
 
         foreach (var cardsOnPage in images.Chunk(CardsOnPage))
         {
-            if (settings.DuplexPrintingEnabled)
-            {
-                container.Page(page =>
-                {
-                    page.Size(PageSizes.A4);
-                    page.Margin(PageMargin, Unit.Centimetre);
-                    page.PageColor(Colors.White);
-
-                    var content = page.Content();
-
-                    content.Table(table =>
-                    {
-                        table.ColumnsDefinition(columns =>
-                        {
-                            for (var i = 0; i < CardsInRow; i++)
-                            {
-                                columns.ConstantColumn(ColumnWidth);
-                            }
-                        });
-                        foreach (var cardsInRow in cardsOnPage.Chunk(CardsInRow))
-                        {
-                            foreach (var card in cardsInRow)
-                            {
-                                table.Cell()
-                                    .Element(s => s.Border(1).Height(DefaultRowHeight))
-                                    .AlignCenter()
-                                    .Padding(TablePadding)
-                                    .Column(c =>
-                                    {
-                                        c.Spacing(20);
-                                        c.Item().Text(cmc.ToString()).FontSize(40).AlignCenter();
-                                        if (settings.IncludeQrCode)
-                                        {
-                                            var qrCodeBytes = GetQrCode(card.Card);
-                                            c.Item().Image(qrCodeBytes);
-                                        }
-                                    });
-
-                            }
-                        }
-                    });
-                });
-            }
-
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
@@ -210,7 +166,9 @@ public static class Generator
 
                 var content = page.Content();
 
-                content.Table(table =>
+                content
+                .AlignCenter()
+                .Table(table =>
                 {
                     table.ColumnsDefinition(columns =>
                     {
@@ -236,7 +194,7 @@ public static class Generator
                                         c.Item().Height(15).ScaleToFit().Text(card.Card.Name).Bold();
                                         c.Item().Height(12).ScaleToFit().Text("Cost: " + GetManaCost(card.Card));
                                         var addQrCodeOnFront = settings.IncludeQrCode && !settings.DuplexPrintingEnabled;
-                                        
+
                                         if (noArt && addQrCodeOnFront)
                                         {
                                             var qrCode = GetQrCode(card.Card);
@@ -279,6 +237,61 @@ public static class Generator
                     }
                 });
             });
+
+            if (settings.DuplexPrintingEnabled)
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(PageMargin, Unit.Centimetre);
+                    page.PageColor(Colors.White);
+
+                    var content = page.Content();
+
+                    content
+                    .AlignCenter()
+                    .Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                for (var i = 0; i < CardsInRow; i++)
+                                {
+                                    columns.ConstantColumn(ColumnWidth);
+                                }
+                            });
+                            foreach (var cardsInRow in cardsOnPage.Chunk(CardsInRow))
+                            {
+                                for (var i = CardsInRow - 1; i >= 0; i--)
+                                {
+                                    if (i < cardsInRow.Length)
+                                    {
+                                        var card = cardsInRow[i];
+                                        table.Cell()
+                                            .Element(s => s.Border(1).Height(DefaultRowHeight))
+                                            .AlignCenter()
+                                            .Padding(TablePadding)
+                                            .Column(c =>
+                                            {
+                                                c.Spacing(20);
+                                                c.Item().Text(cmc.ToString()).FontSize(40).AlignCenter();
+                                                if (settings.IncludeQrCode)
+                                                {
+                                                    var qrCodeBytes = GetQrCode(card.Card);
+                                                    c.Item().Image(qrCodeBytes);
+                                                }
+                                            });
+                                    }
+                                    else
+                                    {
+                                        table.Cell()
+                                            .Element(s => s.Height(DefaultRowHeight))
+                                            .Padding(TablePadding);
+                                    }
+                                }
+                            }
+                        });
+                });
+            }
         }
     }
 
