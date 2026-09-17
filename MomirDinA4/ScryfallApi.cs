@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO.Compression;
 using System.Text;
 using MomirDinA4.ScryfallApiObjects;
 using Newtonsoft.Json;
@@ -8,7 +9,7 @@ namespace MomirDinA4;
 
 public static class ScryfallApi
 {
-    private const string CardsFileName = "scryfallDefaultCards.json";
+    private const string CardsFileName = "scryfallDefaultCards.json.gz";
     private const string CardsFileNameTemp = "scryfallDefaultCards_temp.json";
 
     private static readonly HttpClient ScryfallClient = new();
@@ -50,7 +51,7 @@ public static class ScryfallApi
         using var bulkItemsResponse = await SendJsonRequest("https://api.scryfall.com/bulk-data");
         var bulkItemsString = await bulkItemsResponse.Content.ReadAsStringAsync();
         var bulkItems = JsonConvert.DeserializeObject<BulkDataItems>(bulkItemsString);
-        var bulkCardUrl = (bulkItems?.Data.SingleOrDefault(d => d.Type == "default_cards")?.DownloadUri) ?? throw new Exception("Could not get bulk card download url from scryfall");
+        var bulkCardUrl = (bulkItems?.Data.SingleOrDefault(d => d.Type == "default_cards")?.JsonLDownloadUri) ?? throw new Exception("Could not get bulk card download url from scryfall");
 
         Console.WriteLine("Downloading database from " + bulkCardUrl);
 
@@ -73,15 +74,28 @@ public static class ScryfallApi
         using var fileStream = File.OpenRead(CardsFileName);
         var serializer = new JsonSerializer();
 
-        using (var sr = new StreamReader(fileStream))
-        using (var jsonTextReader = new JsonTextReader(sr))
+        using (var decompressionStream = new GZipStream(fileStream, CompressionMode.Decompress))
+        using (var sr = new StreamReader(decompressionStream))
         {
-            var deserialized = serializer.Deserialize<List<Card>>(jsonTextReader);
-            Momir = deserialized?.SingleOrDefault(c => c.MtgoId == Config.Instance.MomirAvatarMtgoId);
+            var cards = new List<Card>();
+            while (true)
+            {
+                var jsonLine = await sr.ReadLineAsync();
+                if (jsonLine == null)
+                {
+                    break;
+                }
+                var deserialized = JsonConvert.DeserializeObject<Card>(jsonLine);
+                if (deserialized != null)
+                {
+                    cards.Add(deserialized);
+                }
+            }
+            Momir = cards.SingleOrDefault(c => c.MtgoId == Config.Instance.MomirAvatarMtgoId);
 
             Console.WriteLine("Filtering card database");
 
-            var withCmc = deserialized?.Where(c => c.Cmc.HasValue && c.Cmc == (uint)c.Cmc);
+            var withCmc = cards.Where(c => c.Cmc.HasValue && c.Cmc == (uint)c.Cmc);
 
             if (String.IsNullOrWhiteSpace(Config.Instance.CubeFilename))
             {

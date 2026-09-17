@@ -12,7 +12,7 @@ public record BulkDataItem(
     [property: JsonProperty("name")] string Name,
     [property: JsonProperty("description")] string Description,
     [property: JsonProperty("size")] long? Size,
-    [property: JsonProperty("download_uri")] string DownloadUri,
+    [property: JsonProperty("jsonl_download_uri")] string JsonLDownloadUri,
     [property: JsonProperty("content_type")] string ContentType,
     [property: JsonProperty("content_encoding")] string ContentEncoding
     );
